@@ -1,4 +1,4 @@
-module go-common
+module github.com/keshvan/go-common-forum
 
 go 1.23.6
 
