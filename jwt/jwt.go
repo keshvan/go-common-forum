@@ -9,14 +9,11 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type JWTPrivate struct {
+type JWT struct {
 	privateKey      *rsa.PrivateKey
+	publicKey       *rsa.PublicKey
 	accessDuration  time.Duration
 	refreshDuration time.Duration
-}
-
-type JWTPublic struct {
-	publicKey *rsa.PublicKey
 }
 
 type AccessClaims struct {
@@ -54,23 +51,23 @@ func getPrivateKey(path string) (*rsa.PrivateKey, error) {
 	return privateKey, nil
 }
 
-func NewPublic(keyPath string) (*JWTPublic, error) {
+func NewPublic(keyPath string) (*JWT, error) {
 	key, err := getPublicKey(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("JWT - NewPublic - getPublicKey: %w", err)
 	}
-	return &JWTPublic{publicKey: key}, nil
+	return &JWT{privateKey: nil, publicKey: key, accessDuration: 0, refreshDuration: 0}, nil
 }
 
-func NewPrivate(keyPath string, accessDuration time.Duration, refreshDuration time.Duration) (*JWTPrivate, error) {
+func NewPrivate(keyPath string, accessDuration time.Duration, refreshDuration time.Duration) (*JWT, error) {
 	key, err := getPrivateKey(keyPath)
 	if err != nil {
 		return nil, fmt.Errorf("JWT - NewPublic - getPublicKey: %w", err)
 	}
-	return &JWTPrivate{privateKey: key, accessDuration: accessDuration, refreshDuration: refreshDuration}, nil
+	return &JWT{privateKey: key, publicKey: nil, accessDuration: accessDuration, refreshDuration: refreshDuration}, nil
 }
 
-func (j *JWTPrivate) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
+func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
 	claims := &AccessClaims{
 		UserID:  userID,
 		IsAdmin: isAdmin,
@@ -83,7 +80,7 @@ func (j *JWTPrivate) GenerateAccessToken(userID int64, isAdmin bool) (string, er
 	return token.SignedString(j.privateKey)
 }
 
-func (j *JWTPrivate) GenerateRefreshToken(userID int64) (string, error) {
+func (j *JWT) GenerateRefreshToken(userID int64) (string, error) {
 	claims := &RefreshClaims{
 		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -95,7 +92,7 @@ func (j *JWTPrivate) GenerateRefreshToken(userID int64) (string, error) {
 	return token.SignedString(j.privateKey)
 }
 
-func (j *JWTPublic) ParseToken(tokenStr string) (jwt.MapClaims, error) {
+func (j *JWT) ParseToken(tokenStr string) (jwt.MapClaims, error) {
 	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, jwt.ErrSignatureInvalid
