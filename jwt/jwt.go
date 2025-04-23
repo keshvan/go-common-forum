@@ -16,14 +16,9 @@ type JWT struct {
 	refreshDuration time.Duration
 }
 
-type AccessClaims struct {
+type Claims struct {
 	UserID  int64 `json:"user_id"`
 	IsAdmin bool  `json:"is_admin"`
-	jwt.RegisteredClaims
-}
-
-type RefreshClaims struct {
-	UserID int64 `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
@@ -67,8 +62,8 @@ func NewPrivate(keyPath string, accessDuration time.Duration, refreshDuration ti
 	return &JWT{privateKey: key, publicKey: nil, accessDuration: accessDuration, refreshDuration: refreshDuration}, nil
 }
 
-func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
-	claims := &AccessClaims{
+func (j *JWT) GenerateToken(userID int64, isAdmin bool) (string, error) {
+	claims := &Claims{
 		UserID:  userID,
 		IsAdmin: isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -80,20 +75,9 @@ func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
 	return token.SignedString(j.privateKey)
 }
 
-func (j *JWT) GenerateRefreshToken(userID int64) (string, error) {
-	claims := &RefreshClaims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.refreshDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	return token.SignedString(j.privateKey)
-}
-
-func (j *JWT) ParseToken(tokenStr string) (jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+func (j *JWT) ParseToken(tokenStr string) (*Claims, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, jwt.ErrSignatureInvalid
 		}
@@ -104,8 +88,7 @@ func (j *JWT) ParseToken(tokenStr string) (jwt.MapClaims, error) {
 		return nil, err
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
+	if !token.Valid {
 		return nil, jwt.ErrInvalidKey
 	}
 
