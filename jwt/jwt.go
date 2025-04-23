@@ -62,12 +62,25 @@ func NewPrivate(keyPath string, accessDuration time.Duration, refreshDuration ti
 	return &JWT{privateKey: key, publicKey: nil, accessDuration: accessDuration, refreshDuration: refreshDuration}, nil
 }
 
-func (j *JWT) GenerateToken(userID int64, isAdmin bool) (string, error) {
+func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
 	claims := &Claims{
 		UserID:  userID,
 		IsAdmin: isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.accessDuration)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	return token.SignedString(j.privateKey)
+}
+
+func (j *JWT) GenerateRefreshToken(userID int64, isAdmin bool) (string, error) {
+	claims := &Claims{
+		UserID:  userID,
+		IsAdmin: isAdmin,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.refreshDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
 	}
