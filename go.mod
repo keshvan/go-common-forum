@@ -4,6 +4,7 @@ go 1.23.6
 
 require (
 	github.com/gin-gonic/gin v1.10.0
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/jackc/pgx/v5 v5.7.4
 	github.com/rs/zerolog v1.34.0
 )
