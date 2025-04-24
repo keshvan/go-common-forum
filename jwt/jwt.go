@@ -1,104 +1,47 @@
 package jwt
 
 import (
-	"crypto/rsa"
-	"fmt"
-	"os"
+	"errors"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 type JWT struct {
-	privateKey      *rsa.PrivateKey
-	publicKey       *rsa.PublicKey
-	accessDuration  time.Duration
-	refreshDuration time.Duration
+	secretKey  string
+	accessTTL  time.Duration
+	refreshTTL time.Duration
 }
 
-type AccessClaims struct {
-	UserID  int64 `json:"user_id"`
-	IsAdmin bool  `json:"is_admin"`
-	jwt.RegisteredClaims
-}
-
-type RefreshClaims struct {
-	UserID int64 `json:"user_id"`
-	jwt.RegisteredClaims
-}
-
-func getPublicKey(path string) (*rsa.PublicKey, error) {
-	pubBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+func (j *JWT) GenerateAccessToken(userID int64, role string) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"role":    role,
+		"exp":     time.Now().Add(j.accessTTL).Unix(),
+		"iat":     time.Now().Unix(),
 	}
-	publicKey, err := jwt.ParseRSAPublicKeyFromPEM(pubBytes)
-	if err != nil {
-		return nil, err
-	}
-	return publicKey, nil
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(j.secretKey))
 }
 
-func getPrivateKey(path string) (*rsa.PrivateKey, error) {
-	privateBytes, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
+func (j *JWT) GenerateRefreshToken(userID int64) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"exp":     time.Now().Add(j.refreshTTL).Unix(),
+		"iat":     time.Now().Unix(),
 	}
-	privateKey, err := jwt.ParseRSAPrivateKeyFromPEM(privateBytes)
-	if err != nil {
-		return nil, err
-	}
-	return privateKey, nil
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(j.secretKey))
 }
 
-func NewPublic(keyPath string) (*JWT, error) {
-	key, err := getPublicKey(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("JWT - NewPublic - getPublicKey: %w", err)
-	}
-	return &JWT{privateKey: nil, publicKey: key, accessDuration: 0, refreshDuration: 0}, nil
-}
-
-func NewPrivate(keyPath string, accessDuration time.Duration, refreshDuration time.Duration) (*JWT, error) {
-	key, err := getPrivateKey(keyPath)
-	if err != nil {
-		return nil, fmt.Errorf("JWT - NewPublic - getPublicKey: %w", err)
-	}
-	return &JWT{privateKey: key, publicKey: nil, accessDuration: accessDuration, refreshDuration: refreshDuration}, nil
-}
-
-func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
-	claims := &AccessClaims{
-		UserID:  userID,
-		IsAdmin: isAdmin,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.accessDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	return token.SignedString(j.privateKey)
-}
-
-func (j *JWT) GenerateRefreshToken(userID int64, isAdmin bool) (string, error) {
-	claims := &RefreshClaims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.refreshDuration)),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	return token.SignedString(j.privateKey)
-}
-
-func (j *JWT) ParseAccessToken(tokenStr string) (*AccessClaims, error) {
-	claims := &AccessClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, jwt.ErrSignatureInvalid
+func (j *JWT) ParseToken(tokenStr string) (*jwt.MapClaims, error) {
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("unexpected signing method")
 		}
-		return j.publicKey, nil
+		return []byte(j.secretKey), nil
 	})
 
 	if err != nil {
@@ -109,25 +52,10 @@ func (j *JWT) ParseAccessToken(tokenStr string) (*AccessClaims, error) {
 		return nil, jwt.ErrInvalidKey
 	}
 
-	return claims, nil
-}
-
-func (j *JWT) ParseRefreshToken(tokenStr string) (*RefreshClaims, error) {
-	claims := &RefreshClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, jwt.ErrSignatureInvalid
-		}
-		return j.publicKey, nil
-	})
-
-	if err != nil {
-		return nil, err
+	claimsMap, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("invalid token claims")
 	}
 
-	if !token.Valid {
-		return nil, jwt.ErrInvalidKey
-	}
-
-	return claims, nil
+	return &claimsMap, nil
 }
