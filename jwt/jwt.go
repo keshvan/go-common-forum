@@ -16,9 +16,14 @@ type JWT struct {
 	refreshDuration time.Duration
 }
 
-type Claims struct {
+type AccessClaims struct {
 	UserID  int64 `json:"user_id"`
 	IsAdmin bool  `json:"is_admin"`
+	jwt.RegisteredClaims
+}
+
+type RefreshClaims struct {
+	UserID int64 `json:"user_id"`
 	jwt.RegisteredClaims
 }
 
@@ -63,7 +68,7 @@ func NewPrivate(keyPath string, accessDuration time.Duration, refreshDuration ti
 }
 
 func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
-	claims := &Claims{
+	claims := &AccessClaims{
 		UserID:  userID,
 		IsAdmin: isAdmin,
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -76,9 +81,8 @@ func (j *JWT) GenerateAccessToken(userID int64, isAdmin bool) (string, error) {
 }
 
 func (j *JWT) GenerateRefreshToken(userID int64, isAdmin bool) (string, error) {
-	claims := &Claims{
-		UserID:  userID,
-		IsAdmin: isAdmin,
+	claims := &RefreshClaims{
+		UserID: userID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(j.refreshDuration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
@@ -88,8 +92,28 @@ func (j *JWT) GenerateRefreshToken(userID int64, isAdmin bool) (string, error) {
 	return token.SignedString(j.privateKey)
 }
 
-func (j *JWT) ParseToken(tokenStr string) (*Claims, error) {
-	claims := &Claims{}
+func (j *JWT) ParseAccessToken(tokenStr string) (*AccessClaims, error) {
+	claims := &AccessClaims{}
+	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, jwt.ErrSignatureInvalid
+		}
+		return j.publicKey, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !token.Valid {
+		return nil, jwt.ErrInvalidKey
+	}
+
+	return claims, nil
+}
+
+func (j *JWT) ParseRefreshToken(tokenStr string) (*RefreshClaims, error) {
+	claims := &RefreshClaims{}
 	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, jwt.ErrSignatureInvalid
