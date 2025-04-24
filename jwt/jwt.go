@@ -13,6 +13,10 @@ type JWT struct {
 	refreshTTL time.Duration
 }
 
+func New(secretKey string, accessTTL time.Duration, refreshTTL time.Duration) *JWT {
+	return &JWT{secretKey: secretKey, accessTTL: accessTTL, refreshTTL: refreshTTL}
+}
+
 func (j *JWT) GenerateAccessToken(userID int64, role string) (string, error) {
 	claims := jwt.MapClaims{
 		"user_id": userID,
