@@ -6,6 +6,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -15,12 +17,20 @@ const (
 	_defaultConnTimeout  = time.Second
 )
 
+type DBPool interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Close()
+	Config() *pgxpool.Config
+}
+
 // Postgres -.
 type Postgres struct {
 	maxPoolSize  int
 	connAttempts int
 	connTimeout  time.Duration
-	Pool         *pgxpool.Pool
+	Pool         DBPool
 }
 
 // New -.
@@ -58,7 +68,7 @@ func New(url string) (*Postgres, error) {
 	return pg, nil
 }
 
-func NewWithPool(pool *pgxpool.Pool) *Postgres {
+func NewWithPool(pool DBPool) *Postgres {
 	return &Postgres{
 		Pool: pool,
 	}
