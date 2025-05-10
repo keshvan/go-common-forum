@@ -58,6 +58,12 @@ func New(url string) (*Postgres, error) {
 	return pg, nil
 }
 
+func NewWithPool(pool *pgxpool.Pool) *Postgres {
+	return &Postgres{
+		Pool: pool,
+	}
+}
+
 // Close -.
 func (p *Postgres) Close() {
 	if p.Pool != nil {
