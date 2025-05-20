@@ -18,7 +18,7 @@ func (p *Postgres) RunMigrations(ctx context.Context, migrationPath string) erro
 
 	connStr := p.Pool.Config().ConnString()
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("pgx", connStr)
 	if err != nil {
 		return fmt.Errorf("failed to open db connection: %w", err)
 	}
