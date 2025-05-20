@@ -8,7 +8,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	pgxMigrateDriver "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	_ "github.com/golang-migrate/migrate/v4/source/file" // Для "file://"
-	// Нужен для приведения типа p.Pool
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 func (p *Postgres) RunMigrations(ctx context.Context, migrationPath string) error {
